@@ -4,14 +4,15 @@ name: CMake on multiple platforms
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master" ]
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     permissions: write-all
+
     strategy:
       # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
       fail-fast: false
@@ -25,37 +26,37 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         build_type: [Release]
-        c_compiler: [gcc, clang, cl]
+        c_compiler: [gcc]
         include:
           - os: windows-latest
             os_short: win64
-            c_compiler: cl
-            cpp_compiler: cl
-            cpack_type: zip
-          - os: ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
-            cpack_type: deb
+            generator: -G "MinGW Makefiles"
+            cpack_type: zip
           - os: ubuntu-latest
-            c_compiler: clang
-            cpp_compiler: clang++
+            os_short: Linux
+            c_compiler: gcc
+            cpp_compiler: g++
             cpack_type: deb
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set reusable strings
-      # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
-      id: strings
-      shell: bash
+    - name: Install minGW
+      if: matrix.os == 'windows-latest'
       run: |
-        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+        choco install mingw
+        echo "C:/mingw64/tools/bin" >> $env:GITHUB_PATH
+        gcc --version
+        g++ --version
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: >
-        cmake -B ${{ steps.strings.outputs.build-output-dir }}
+        cmake -B .
+        ${{ matrix.generator }}
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
@@ -63,14 +64,16 @@ jobs:
 
     - name: Build
       # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
-      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+      run: |
+        cmake --build . --config ${{ matrix.build_type }}
+        cmake --build . --target package --config ${{ matrix.build_type }}
 
     - name: Test
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
       # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
       # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
       run: ctest --build-config ${{ matrix.build_type }}
-
+    
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -92,3 +95,5 @@ jobs:
         asset_path: ./ProgLab2-0.1.0-${{ matrix.os_short }}.${{ matrix.cpack_type }}
         asset_name: ProgLab2-0.1.0-${{ matrix.os_short }}.${{ matrix.cpack_type }}
         asset_content_type: application/${{ matrix.cpack_type }}
+
+    
