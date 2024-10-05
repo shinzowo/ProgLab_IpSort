@@ -7,7 +7,7 @@
 #include "ip_filter.h"
 
 int main(){
-    std::ifstream file("../ip_filter.tsv");
+    std::ifstream file("./ip_filter.tsv");
     if(!file.is_open()){
         std::cout<<"File ip_filter is not open\n";
         return 1;
